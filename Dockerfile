@@ -1,11 +1,17 @@
-FROM openjdk:17
+FROM openjdk:17-alpine as builder
 
-RUN ["useradd", "-ms", "/bin/sh", "cvebot"]
+WORKDIR cvebot
+COPY . .
+
+RUN ./mvnw install -DskipTests
+
+
+FROM openjdk:17-alpine
+
+RUN ["adduser", "--disabled-password", "cvebot"]
 USER cvebot
+WORKDIR cvebot
 
-WORKDIR /home/cvebot
-COPY ./target/cvebot-1.0.jar .
+COPY --from=builder /cvebot/target/cvebot-1.0.jar .
 
-ENV DISCORD_TOKEN="Put your bot token here !"
-
-CMD ["java", "-jar", "cvebot-1.0.jar"]
+CMD ["java", "-jar", "/cvebot/cvebot-1.0.jar"]

@@ -1,0 +1,4 @@
+javadoc/
+.git/
+.dockerignore
+Dockerfile
