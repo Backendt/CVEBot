@@ -47,8 +47,8 @@ class NVDRepositoryTests {
         ZonedDateTime now = ZonedDateTime.now(clock);
         ZonedDateTime startTime = now.minusHours(2);
 
-        String modStartDate = startTime.format(NVD_TIME_PATTERN).replace(" +", "%20+");
-        String modEndDate = now.format(NVD_TIME_PATTERN).replace(" +", "%20+");
+        String modStartDate = startTime.format(NVD_TIME_PATTERN).replace(" ", "%20");
+        String modEndDate = now.format(NVD_TIME_PATTERN).replace(" ", "%20");
 
         String expectedPath = "/?modStartDate=%s&modEndDate=%s"
                 .formatted(modStartDate, modEndDate);

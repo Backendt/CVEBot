@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 @Repository
 public class NVDRepository {
 
-    public static final DateTimeFormatter NVD_TIME_PATTERN = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS Z");
+    public static final DateTimeFormatter NVD_TIME_PATTERN = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss:SSS z");
 
     private static final String NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/1.0";
 
