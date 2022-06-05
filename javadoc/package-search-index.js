@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"fr.backendt.cvebot"},{"l":"fr.backendt.cvebot.configuration"},{"l":"fr.backendt.cvebot.deserializers"},{"l":"fr.backendt.cvebot.models"},{"l":"fr.backendt.cvebot.repositories"},{"l":"fr.backendt.cvebot.services"},{"l":"fr.backendt.cvebot.utils"}];updateSearchResults();

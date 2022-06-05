@@ -1,0 +1,7 @@
+fr.backendt.cvebot
+fr.backendt.cvebot.configuration
+fr.backendt.cvebot.deserializers
+fr.backendt.cvebot.models
+fr.backendt.cvebot.repositories
+fr.backendt.cvebot.services
+fr.backendt.cvebot.utils
