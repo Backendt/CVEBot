@@ -44,4 +44,18 @@ class CVEDeserializerTest {
         assertThat(result).isEqualTo(expected);
     }
 
+    @Test
+    void realCveDataDeserializationTest() throws IOException {
+        // GIVEN
+        String json = TestConsts.getJson("full_response");
+
+        CVEData result;
+
+        // WHEN
+        result = mapper.readValue(json, CVEData.class);
+
+        // THEN
+        assertThat(result).isNotNull();
+    }
+
 }
