@@ -2,6 +2,7 @@ package fr.backendt.cvebot.services;
 
 import fr.backendt.cvebot.models.CVE;
 import fr.backendt.cvebot.utils.EmbedUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.javacord.api.DiscordApi;
@@ -49,12 +50,13 @@ public class DiscordService {
                 .toList();
 
         // Send embeds in all channels
-        channels.forEach(channel ->
-                channel.sendMessage(cveAsEmbeds)
+        channels.forEach(channel -> {
+            for(List<EmbedBuilder> embedGroup : ListUtils.partition(cveAsEmbeds, 10)) // Send in groups of 10 embeds
+                channel.sendMessage(embedGroup)
                         .exceptionally(throwable -> {
                             LOGGER.error("Could not send embed to a channel", throwable);
                             return null;
-                        }));
+                        });});
     }
 
     /**

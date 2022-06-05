@@ -1,9 +1,7 @@
 package fr.backendt.cvebot.models;
 
 import java.awt.*;
-import java.io.File;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.io.InputStream;
 
 public enum Severity {
     UNKNOWN(Color.DARK_GRAY),
@@ -21,20 +19,10 @@ public enum Severity {
         return this.color;
     }
 
-    public File getImageFile() {
-        URL url = this.getClass().getClassLoader()
-                .getResource("images/%s.jpeg".formatted(
+    public InputStream getImageFile() {
+        return this.getClass().getClassLoader()
+                .getResourceAsStream("images/%s.jpeg".formatted(
                         this.toString().toLowerCase()
                 ));
-
-        if(url != null) {
-            try {
-                return new File(url.toURI());
-            } catch(URISyntaxException ignored) {
-                return null;
-            }
-        }
-
-        return null;
     }
 }
