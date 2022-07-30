@@ -31,7 +31,9 @@ public class DiscordService {
     public void sendCVEMessagesToChannels(Collection<CVEMessage> messages, Collection<TextChannel> channels) {
         for(TextChannel channel : channels) {
             for(CVEMessage message : messages) {
-                sendCVEMessageToChannel(message, channel);
+                if(!message.getEmbeds().isEmpty()) {
+                    sendCVEMessageToChannel(message, channel);
+                }
             }
         }
     }
