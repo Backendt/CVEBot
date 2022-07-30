@@ -1,13 +1,13 @@
 package fr.backendt.cvebot.services;
 
-import fr.backendt.cvebot.models.CVEData;
-import fr.backendt.cvebot.repositories.NVDRepository;
+import fr.backendt.cvebot.models.CVEMessage;
+import net.dv8tion.jda.api.entities.TextChannel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import reactor.core.publisher.Mono;
 
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import static fr.backendt.cvebot.TestConsts.CVE_DATA_TEST;
@@ -16,73 +16,40 @@ import static org.mockito.Mockito.*;
 
 class ScheduledServiceTests {
 
-    private NVDRepository repository;
+    private CVEService cveService;
     private DiscordService discordService;
     private ScheduledService service;
 
     @BeforeEach
     void initTest() {
-        repository = Mockito.mock(NVDRepository.class);
+        cveService = Mockito.mock(CVEService.class);
         discordService = Mockito.mock(DiscordService.class);
 
-        service = new ScheduledService(repository, discordService);
+        service = new ScheduledService(cveService, discordService);
     }
 
     @Test
     void updateCVEsTest() {
         // GIVEN
-        ZonedDateTime time = service.getLastCheck();
+        ZonedDateTime time = ZonedDateTime.now();
 
-        Mono<CVEData> data = Mono.fromCallable(() -> CVE_DATA_TEST);
+        TextChannel channel = Mockito.mock(TextChannel.class);
+        Collection<TextChannel> channels = List.of(channel);
+        Collection<CVEMessage> messages = List.of(new CVEMessage());
 
         ZonedDateTime result;
 
-        when(repository.fetchCVEsAfterTime(time)).thenReturn(data);
+        when(cveService.getCVEAfterTime(any(ZonedDateTime.class))).thenReturn(CVE_DATA_TEST);
+        when(discordService.getAllServersCveChannels()).thenReturn(channels);
+        when(cveService.getPartitionedCVEMessages(anyList())).thenReturn(messages);
         // WHEN
-        result = service.updateCVEs();
+        result = service.updateCVEs(time);
 
         // THEN
-        verify(repository, times(1)).fetchCVEsAfterTime(time);
-        verify(discordService, times(1)).postNewCVEs(CVE_DATA_TEST.getCveList());
-
+        verify(cveService).getCVEAfterTime(time);
+        verify(cveService).getPartitionedCVEMessages(CVE_DATA_TEST.getCveList());
+        verify(discordService).sendCVEMessagesToChannels(messages, channels);
         assertThat(result).isEqualTo(CVE_DATA_TEST.getRequestTime());
-    }
-
-    @Test
-    void fetchCVEsTest() {
-        // GIVEN
-        ZonedDateTime time = service.getLastCheck();
-
-        Mono<CVEData> data = Mono.fromCallable(() -> CVE_DATA_TEST);
-
-        CVEData result;
-
-        when(repository.fetchCVEsAfterTime(time)).thenReturn(data);
-        // WHEN
-        result = service.fetchCVEs();
-
-        // THEN
-        verify(repository, times(1)).fetchCVEsAfterTime(time);
-        assertThat(result).isEqualTo(CVE_DATA_TEST);
-    }
-
-    @Test
-    void fetchEmptyCVEsTest() {
-        // GIVEN
-        ZonedDateTime time = service.getLastCheck();
-
-        Mono<CVEData> data = Mono.empty();
-
-        CVEData expected = new CVEData(List.of(), time);
-        CVEData result;
-
-        when(repository.fetchCVEsAfterTime(time)).thenReturn(data);
-        // WHEN
-        result = service.fetchCVEs();
-
-        // THEN
-        verify(repository, times(1)).fetchCVEsAfterTime(time);
-        assertThat(result).isEqualTo(expected);
     }
 
 }
