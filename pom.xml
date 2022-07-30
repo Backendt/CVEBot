@@ -43,10 +43,15 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.javacord</groupId>
-			<artifactId>javacord</artifactId>
-			<version>3.5.0-SNAPSHOT</version>
-			<type>pom</type>
+			<groupId>net.dv8tion</groupId>
+			<artifactId>JDA</artifactId>
+			<version>5.0.0-alpha.12</version>
+			<exclusions>
+				<exclusion>
+					<groupId>club.minnced</groupId>
+					<artifactId>opus-java</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>

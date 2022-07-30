@@ -1,15 +1,16 @@
 package fr.backendt.cvebot.services;
 
 import fr.backendt.cvebot.models.CVE;
-import org.javacord.api.DiscordApi;
-import org.javacord.api.DiscordApiBuilder;
-import org.javacord.api.entity.channel.ServerTextChannel;
-import org.javacord.api.entity.server.Server;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.TextChannel;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.security.auth.login.LoginException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -20,34 +21,34 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 
 class DiscordServiceTests {
 
-    private static DiscordApi api;
-    private static Server testServer;
+    private static JDA jda;
+    private static Guild testGuild;
 
     private DiscordService service;
 
     @BeforeAll
-    static void setupDiscordApi() {
+    static void setupDiscordApi() throws LoginException, InterruptedException {
         String token = System.getenv("DISCORD_TOKEN");
 
-        api = new DiscordApiBuilder()
-                .setToken(token)
-                .login().join();
+        jda = JDABuilder.createDefault(token)
+                .build()
+                .awaitReady();
 
-        Collection<Server> servers = api.getServers();
+        Collection<Guild> servers = jda.getGuilds();
         if(servers.size() > 1) {
             throw new IllegalStateException("WARNING ! Multiple servers detected ! Check the discord token");
         }
-        testServer = servers.stream().findFirst().orElseThrow();
+        testGuild = servers.stream().findFirst().orElseThrow();
     }
 
     @AfterAll
     static void shutdownDiscordApi() {
-        api.disconnect();
+        jda.shutdown();
     }
 
     @BeforeEach
     void initTest() {
-        service = new DiscordService(api);
+        service = new DiscordService(jda);
     }
 
     @Test
@@ -60,19 +61,19 @@ class DiscordServiceTests {
                 () -> service.postNewCVEs(cveList)
         );
 
-        testServer.getTextChannelsByName("cve-news").forEach(
-                channel -> channel.delete().join()
+        testGuild.getTextChannelsByName("cve-news", true).forEach(
+                channel -> channel.delete().complete()
         );
     }
 
     @Test
-    void getAllServersCveChannelsTest() {
+    void getAllGuildsCveChannelsTest() {
         // GIVEN
-        ServerTextChannel channel = service.createServerCveChannel(testServer).orElseThrow();
+        TextChannel channel = service.createServerCveChannel(testGuild).orElseThrow();
 
-        List<Server> servers = List.of(testServer);
+        List<Guild> servers = List.of(testGuild);
 
-        Collection<ServerTextChannel> result;
+        Collection<TextChannel> result;
 
         // WHEN
         result = service.getAllServersCveChannels(servers);
@@ -80,16 +81,16 @@ class DiscordServiceTests {
         // THEN
         assertThat(result).containsExactly(channel);
 
-        channel.delete().join();
+        channel.delete().complete();
     }
 
     @Test
-    void getAllServersNonExistentCveChannelsTest() {
+    void getAllGuildsNonExistentCveChannelsTest() {
         // GIVEN
-        List<Server> servers = List.of(testServer);
+        List<Guild> servers = List.of(testGuild);
 
         int expectedSize = 1;
-        Collection<ServerTextChannel> result;
+        Collection<TextChannel> result;
 
         // WHEN
         result = service.getAllServersCveChannels(servers);
@@ -97,52 +98,52 @@ class DiscordServiceTests {
         // THEN
         assertThat(result).hasSize(expectedSize);
 
-        result.stream().findFirst().orElseThrow().delete().join();
+        result.stream().findFirst().orElseThrow().delete().complete();
     }
 
     @Test
-    void getServerCveChannelTest() {
+    void getGuildCveChannelTest() {
         // GIVEN
-        ServerTextChannel channel = service.createServerCveChannel(testServer).orElseThrow();
+        TextChannel channel = service.createServerCveChannel(testGuild).orElseThrow();
 
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
         // WHEN
-        result = service.getServerCveChannel(testServer);
+        result = service.getServerCveChannel(testGuild);
 
         // THEN
         assertThat(result)
                 .isNotEmpty()
                 .contains(channel);
 
-        result.get().delete().join();
+        result.get().delete().complete();
     }
 
     @Test
-    void getServerNonExistentCveChannelTest() {
+    void getGuildNonExistentCveChannelTest() {
         // GIVEN
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
         // WHEN
-        result = service.getServerCveChannel(testServer);
+        result = service.getServerCveChannel(testGuild);
 
         // THEN
         assertThat(result).isNotEmpty();
 
-        result.get().delete().join();
+        result.get().delete().complete();
     }
 
     @Test
-    void createServerCveChannelTest() {
+    void createGuildCveChannelTest() {
         // GIVEN
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
 
         // WHEN
-        result = service.createServerCveChannel(testServer);
+        result = service.createServerCveChannel(testGuild);
 
         // THEN
         assertThat(result).isNotEmpty();
-        assertThat(result.get().canYouWrite()).isTrue();
+        assertThat(result.get().canTalk()).isTrue();
 
-        result.get().delete().join();
+        result.get().delete().complete();
     }
 
 }

@@ -1,10 +1,12 @@
 package fr.backendt.cvebot.configuration;
 
-import org.javacord.api.DiscordApi;
-import org.javacord.api.DiscordApiBuilder;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import javax.security.auth.login.LoginException;
 
 @Configuration
 public class DiscordApiConfiguration {
@@ -13,10 +15,9 @@ public class DiscordApiConfiguration {
     private String token;
 
     @Bean
-    public DiscordApi discordApi() {
-        return new DiscordApiBuilder()
-                .setToken(token)
-                .login().join();
+    public JDA getJDA() throws LoginException {
+        return JDABuilder.createDefault(token)
+                .build();
     }
 
 }
