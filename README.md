@@ -1,6 +1,6 @@
 # CVE Bot
 
-CVE Bot is a Discord bot written in Java, using Spring Boot and Javacord.
+CVE Bot is a Discord bot written in Java, using Spring Boot and JDA.
 
 It uses the [National Vulnerability Database](https://nvd.nist.gov/) to get the latest CVE informations.
 
