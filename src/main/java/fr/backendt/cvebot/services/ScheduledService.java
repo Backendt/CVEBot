@@ -1,86 +1,61 @@
 package fr.backendt.cvebot.services;
 
-import fr.backendt.cvebot.models.CVE;
+import fr.backendt.cvebot.exceptions.CVEException;
 import fr.backendt.cvebot.models.CVEData;
-import fr.backendt.cvebot.repositories.NVDRepository;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import fr.backendt.cvebot.models.CVEMessage;
+import lombok.extern.log4j.Log4j2;
+import net.dv8tion.jda.api.entities.TextChannel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Log4j2
 public class ScheduledService {
-
-    private static final Logger LOGGER = LogManager.getLogger(ScheduledService.class);
 
     @Value("${cvebot.automatic-updates.disabled:false}")
     private boolean automaticUpdateDisabled;
     private ZonedDateTime lastCheck = ZonedDateTime.now().minusHours(2L);
 
-    private final NVDRepository repository;
+    private final CVEService cveService;
     private final DiscordService discordService;
 
-    public ScheduledService(NVDRepository repository, DiscordService discordService) {
-        this.repository = repository;
+    public ScheduledService(CVEService cveService, DiscordService discordService) {
+        this.cveService = cveService;
         this.discordService = discordService;
     }
 
     @Scheduled(fixedDelay = 2L, timeUnit = TimeUnit.HOURS)
     public void onAutomaticUpdate() {
-
         if(automaticUpdateDisabled) {
-            LOGGER.warn("Automatic updates are disabled");
+            log.warn("Automatic updates are disabled");
             return;
         }
 
-        lastCheck = updateCVEs();
+        log.info("Updating CVEs...");
+        try {
+            this.lastCheck = updateCVEs(lastCheck);
+        } catch(CVEException exception) {
+            log.error("An error occurred when updating CVEs", exception);
+        }
     }
 
     /**
      * Fetch CVEs and send them to discord servers
      * @return The time of the most recent CVE
      */
-    public ZonedDateTime updateCVEs() {
-        LOGGER.info("Updating CVEs...");
+    public ZonedDateTime updateCVEs(ZonedDateTime lastCheck) throws CVEException {
+        CVEData fetchedCVEs = cveService.getCVEAfterTime(lastCheck);
+        Collection<TextChannel> cveChannels = discordService.getAllServersCveChannels();
+        Collection<CVEMessage> cveMessages = cveService.getPartitionedCVEMessages(fetchedCVEs.getCveList());
 
-        // Fetch CVEs from NVD
-        CVEData fetchedCVEs = fetchCVEs();
-
-        // Send CVEs to Discord servers
-        List<CVE> cveList = fetchedCVEs.getCveList();
-        if(!cveList.isEmpty()) {
-            discordService.postNewCVEs(cveList);
-        } else {
-            LOGGER.info("No CVEs to send !");
-        }
-
+        discordService.sendCVEMessagesToChannels(cveMessages, cveChannels);
+        log.info("Sent {} CVE(s) to {} channel(s)", fetchedCVEs.getCveList().size(), cveChannels.size());
         return fetchedCVEs.getRequestTime();
-    }
-
-    public CVEData fetchCVEs() {
-        Optional<CVEData> response = repository.fetchCVEsAfterTime(lastCheck)
-                .retry(3)
-                .timeout(Duration.ofSeconds(10))
-                .blockOptional();
-
-        if(response.isEmpty()) {
-            LOGGER.error("Could not get response from NVD");
-            LOGGER.debug("Start time requested = {}", lastCheck);
-            return new CVEData(List.of(), lastCheck);
-        }
-
-        return response.get();
-    }
-
-    public ZonedDateTime getLastCheck() {
-        return this.lastCheck;
     }
 
 }

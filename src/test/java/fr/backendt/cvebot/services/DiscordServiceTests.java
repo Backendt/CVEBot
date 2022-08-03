@@ -1,148 +1,216 @@
 package fr.backendt.cvebot.services;
 
-import fr.backendt.cvebot.models.CVE;
-import org.javacord.api.DiscordApi;
-import org.javacord.api.DiscordApiBuilder;
-import org.javacord.api.entity.channel.ServerTextChannel;
-import org.javacord.api.entity.server.Server;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import fr.backendt.cvebot.models.CVEMessage;
+import fr.backendt.cvebot.models.Severity;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.requests.restaction.ChannelAction;
+import net.dv8tion.jda.api.requests.restaction.MessageAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
-import static fr.backendt.cvebot.TestConsts.CVE_TEST;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 class DiscordServiceTests {
 
-    private static DiscordApi api;
-    private static Server testServer;
-
+    private JDA jda;
     private DiscordService service;
 
-    @BeforeAll
-    static void setupDiscordApi() {
-        String token = System.getenv("DISCORD_TOKEN");
-
-        api = new DiscordApiBuilder()
-                .setToken(token)
-                .login().join();
-
-        Collection<Server> servers = api.getServers();
-        if(servers.size() > 1) {
-            throw new IllegalStateException("WARNING ! Multiple servers detected ! Check the discord token");
-        }
-        testServer = servers.stream().findFirst().orElseThrow();
-    }
-
-    @AfterAll
-    static void shutdownDiscordApi() {
-        api.disconnect();
-    }
+    private Guild server;
+    private TextChannel channel;
+    private ChannelAction<TextChannel> action;
 
     @BeforeEach
     void initTest() {
-        service = new DiscordService(api);
+        jda = Mockito.mock(JDA.class);
+        service = new DiscordService(jda);
+
+        server = Mockito.mock(Guild.class);
+        channel = Mockito.mock(TextChannel.class);
+        action = Mockito.mock(ChannelAction.class);
     }
 
     @Test
-    void postNewCVEsTest() {
+    void sendCVEMessagesToChannelsTest() {
         // GIVEN
-        List<CVE> cveList = List.of(CVE_TEST);
+        MessageEmbed embed = Mockito.mock(MessageEmbed.class);
+        List<MessageEmbed> embeds = List.of(embed);
+        Set<Severity> severities = Set.of(Severity.UNKNOWN);
+
+        CVEMessage message = new CVEMessage(embeds, severities);
+        MessageAction messageAction = Mockito.mock(MessageAction.class);
+
+        List<CVEMessage> messages = List.of(message);
+        List<TextChannel> channels = List.of(channel);
+
+        when(channel.sendMessageEmbeds(anyCollection())).thenReturn(messageAction);
+        when(messageAction.addFile(any(InputStream.class), anyString())).thenReturn(messageAction);
+        // WHEN
+        service.sendCVEMessagesToChannels(messages, channels);
+
+        // THEN
+        verify(channel).sendMessageEmbeds(embeds);
+        verify(messageAction).addFile(any(InputStream.class), anyString());
+        verify(messageAction).queue(any(), any());
+    }
+
+    @Test
+    void sendEmptyCVEMessagesToChannelsTest() {
+        // GIVEN
+        List<CVEMessage> messages = List.of(new CVEMessage());
+        List<TextChannel> channels = List.of(channel);
 
         // WHEN
-        assertThatNoException().isThrownBy(
-                () -> service.postNewCVEs(cveList)
-        );
+        service.sendCVEMessagesToChannels(messages, channels);
 
-        testServer.getTextChannelsByName("cve-news").forEach(
-                channel -> channel.delete().join()
-        );
+        // THEN
+        verify(channel, never()).sendMessageEmbeds(anyCollection());
+    }
+
+    @Test
+    void sendCVEMessageToChannelTest() {
+        // GIVEN
+        MessageEmbed embed = Mockito.mock(MessageEmbed.class);
+        List<MessageEmbed> embeds = List.of(embed);
+        Set<Severity> severities = Set.of(Severity.UNKNOWN, Severity.CRITICAL);
+
+        CVEMessage message = new CVEMessage(embeds, severities);
+        MessageAction messageAction = Mockito.mock(MessageAction.class);
+
+        when(channel.sendMessageEmbeds(anyCollection())).thenReturn(messageAction);
+        when(messageAction.addFile(any(InputStream.class), anyString())).thenReturn(messageAction);
+        // WHEN
+        service.sendCVEMessageToChannel(message, channel);
+
+        // THEN
+        verify(channel).sendMessageEmbeds(embeds);
+        verify(messageAction, times(2)).addFile(any(InputStream.class), anyString());
+        verify(messageAction).queue(any(), any());
     }
 
     @Test
     void getAllServersCveChannelsTest() {
         // GIVEN
-        ServerTextChannel channel = service.createServerCveChannel(testServer).orElseThrow();
+        List<Guild> guilds = List.of(server);
 
-        List<Server> servers = List.of(testServer);
+        List<TextChannel> channels = List.of(channel);
+        Collection<TextChannel> result;
 
-        Collection<ServerTextChannel> result;
-
+        when(jda.getGuilds()).thenReturn(guilds);
+        when(server.getTextChannelsByName(anyString(), anyBoolean())).thenReturn(channels);
+        when(channel.canTalk()).thenReturn(true);
         // WHEN
-        result = service.getAllServersCveChannels(servers);
+        result = service.getAllServersCveChannels();
 
         // THEN
-        assertThat(result).containsExactly(channel);
-
-        channel.delete().join();
+        assertThat(result).contains(channel);
     }
 
     @Test
-    void getAllServersNonExistentCveChannelsTest() {
+    void getNoServersCveChannelsTest() {
         // GIVEN
-        List<Server> servers = List.of(testServer);
+        Collection<TextChannel> result;
 
-        int expectedSize = 1;
-        Collection<ServerTextChannel> result;
-
+        when(jda.getGuilds()).thenReturn(List.of());
         // WHEN
-        result = service.getAllServersCveChannels(servers);
+        result = service.getAllServersCveChannels();
 
         // THEN
-        assertThat(result).hasSize(expectedSize);
-
-        result.stream().findFirst().orElseThrow().delete().join();
+        assertThat(result).isEmpty();
     }
 
     @Test
-    void getServerCveChannelTest() {
+    void getServerExistentCveChannelTest() {
         // GIVEN
-        ServerTextChannel channel = service.createServerCveChannel(testServer).orElseThrow();
+        List<TextChannel> channels = List.of(channel);
 
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
+
+        when(channel.canTalk()).thenReturn(true);
+        when(server.getTextChannelsByName(anyString(), anyBoolean())).thenReturn(channels);
         // WHEN
-        result = service.getServerCveChannel(testServer);
+        result = service.getServerCveChannel(server);
 
         // THEN
-        assertThat(result)
-                .isNotEmpty()
-                .contains(channel);
+        assertThat(result).contains(channel);
+        verify(server, never()).createTextChannel(anyString());
+    }
 
-        result.get().delete().join();
+    @Test
+    void getServerNonAuthorizedCveChannelTest() {
+        // GIVEN
+        TextChannel nonAuthorizedChannel = Mockito.mock(TextChannel.class);
+        List<TextChannel> channels = List.of(nonAuthorizedChannel);
+
+        Optional<TextChannel> result;
+
+        when(nonAuthorizedChannel.canTalk()).thenReturn(false);
+        when(server.getTextChannelsByName(anyString(), anyBoolean())).thenReturn(channels);
+        when(server.createTextChannel(anyString())).thenReturn(action);
+        when(action.complete()).thenReturn(channel);
+        // WHEN
+        result = service.getServerCveChannel(server);
+
+        // THEN
+        assertThat(result).contains(channel);
+        verify(server).createTextChannel(anyString());
     }
 
     @Test
     void getServerNonExistentCveChannelTest() {
         // GIVEN
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
+
+        when(server.getTextChannelsByName(anyString(), anyBoolean())).thenReturn(List.of());
+        when(server.createTextChannel(anyString())).thenReturn(action);
+        when(action.complete()).thenReturn(channel);
         // WHEN
-        result = service.getServerCveChannel(testServer);
+        result = service.getServerCveChannel(server);
 
         // THEN
-        assertThat(result).isNotEmpty();
-
-        result.get().delete().join();
+        assertThat(result).contains(channel);
+        verify(server).createTextChannel(anyString());
     }
 
     @Test
     void createServerCveChannelTest() {
         // GIVEN
-        Optional<ServerTextChannel> result;
+        Optional<TextChannel> result;
 
+        when(server.createTextChannel(anyString())).thenReturn(action);
+        when(action.complete()).thenReturn(channel);
         // WHEN
-        result = service.createServerCveChannel(testServer);
+        result = service.createServerCveChannel(server);
 
         // THEN
-        assertThat(result).isNotEmpty();
-        assertThat(result.get().canYouWrite()).isTrue();
+        assertThat(result).contains(channel);
 
-        result.get().delete().join();
+        verify(action).complete();
+    }
+
+    @Test
+    void createServerCveChannelWithoutPermissionTest() {
+        // GIVEN
+        Optional<TextChannel> result;
+
+        when(server.createTextChannel(anyString())).thenThrow(new RuntimeException("Error !"));
+        // WHEN
+        result = service.createServerCveChannel(server);
+
+        // THEN
+        assertThat(result).isEmpty();
     }
 
 }

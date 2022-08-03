@@ -3,7 +3,10 @@ package fr.backendt.cvebot;
 import fr.backendt.cvebot.models.CVE;
 import fr.backendt.cvebot.models.CVEData;
 import fr.backendt.cvebot.models.Severity;
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 
+import java.awt.*;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -34,6 +37,16 @@ public class TestConsts {
                     UTC
             )
     );
+
+    public static final MessageEmbed CVE_EMBED_TEST = new EmbedBuilder()
+            .setTitle("CVE-2022-30595", "https://nvd.nist.gov/vuln/detail/CVE-2022-30595")
+            .setDescription("libImaging/TgaRleDecode.c in Pillow 9.1.0 has a heap buffer overflow in the processing of invalid TGA image files.")
+            .setAuthor("CRITICAL (9.8)", "https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?name=CVE-2022-30595", "attachment://critical.jpeg")
+            .setColor(Color.WHITE)
+            .addField("Attack Vector", "NETWORK", false)
+            .addField("Problem(s) Type", "CWE-787", false)
+            .setFooter("Click the title for more information")
+            .build();
 
     public static String getJson(String fileName) throws IOException {
         String resourcePath = "json/%s.json".formatted(fileName);

@@ -1,72 +1,67 @@
 package fr.backendt.cvebot.services;
 
-import fr.backendt.cvebot.models.CVE;
-import fr.backendt.cvebot.utils.EmbedUtils;
-import org.apache.commons.collections4.ListUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.javacord.api.DiscordApi;
-import org.javacord.api.entity.channel.ServerTextChannel;
-import org.javacord.api.entity.message.embed.EmbedBuilder;
-import org.javacord.api.entity.server.Server;
-import org.springframework.scheduling.annotation.Async;
+import fr.backendt.cvebot.models.CVEMessage;
+import fr.backendt.cvebot.models.Severity;
+import lombok.extern.log4j.Log4j2;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.requests.restaction.MessageAction;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
+@Log4j2
 public class DiscordService {
 
-    private static final Logger LOGGER = LogManager.getLogger(DiscordService.class);
     private static final String CHANNEL_NAME = "cve-news";
 
-    private final DiscordApi api;
+    private final JDA jda;
 
-    public DiscordService(DiscordApi api) {
-        this.api = api;
+    public DiscordService(JDA jda) {
+        this.jda = jda;
     }
 
-    /**
-     * Send CVEs to all discord servers
-     * @param cveList The CVEs to send
-     */
-    @Async
-    public void postNewCVEs(List<CVE> cveList) {
-        Collection<Server> servers = api.getServers();
-        LOGGER.info("Sending {} CVE(s) to {} server(s)", cveList.size(), servers.size());
 
-        // Get all CVE news text channels
-        Collection<ServerTextChannel> channels = getAllServersCveChannels(servers);
+    public void sendCVEMessagesToChannels(Collection<CVEMessage> messages, Collection<TextChannel> channels) {
+        for(TextChannel channel : channels) {
+            for(CVEMessage message : messages) {
+                if(!message.getEmbeds().isEmpty()) {
+                    sendCVEMessageToChannel(message, channel);
+                }
+            }
+        }
+    }
 
-        if(channels.isEmpty()) {
-            return;
+    public void sendCVEMessageToChannel(CVEMessage message, TextChannel channel) {
+        List<MessageEmbed> embeds = message.getEmbeds();
+        Set<Severity> severities = message.getSeverities();
+
+        MessageAction action = channel.sendMessageEmbeds(embeds);
+        for(Severity severity : severities) {
+            action = action.addFile(
+                    severity.getImageFile(),
+                    severity.getImageName()
+            );
         }
 
-        // Create Embed messages from CVEs
-        List<EmbedBuilder> cveAsEmbeds = cveList.stream()
-                .map(EmbedUtils::createCveEmbed)
-                .toList();
-
-        // Send embeds in all channels
-        channels.forEach(channel -> {
-            for(List<EmbedBuilder> embedGroup : ListUtils.partition(cveAsEmbeds, 10)) // Send in groups of 10 embeds
-                channel.sendMessage(embedGroup)
-                        .exceptionally(throwable -> {
-                            LOGGER.error("Could not send embed to a channel", throwable);
-                            return null;
-                        });});
+        action.queue(null, error -> log.error("Could not send embed to a channel", error));
     }
 
     /**
-     * Get cve-news channel of all given servers.
+     * Get cve-news channel of all servers.
      * Create the text channel if it doesn't exist.
      * Servers in which channels couldn't be fetched nor created will not have its text channel in the collection
-     * @param servers Servers to get the channels from
      * @return The cve-news channels
      */
-    public Collection<ServerTextChannel> getAllServersCveChannels(Collection<Server> servers) {
+    public Collection<TextChannel> getAllServersCveChannels() {
+        List<Guild> servers = jda.getGuilds();
+
         return servers.stream()
                 .map(this::getServerCveChannel)
                 .filter(Optional::isPresent)
@@ -80,8 +75,9 @@ public class DiscordService {
      * @param server The server to get the channel from
      * @return The cve-news channel. Empty if it couldn't be fetched or created
      */
-    public Optional<ServerTextChannel> getServerCveChannel(Server server) {
-        return server.getTextChannelsByNameIgnoreCase(CHANNEL_NAME).stream()
+    public Optional<TextChannel> getServerCveChannel(Guild server) {
+        return server.getTextChannelsByName(CHANNEL_NAME, true).stream()
+                .filter(TextChannel::canTalk)
                 .findFirst()
                 .or(() -> this.createServerCveChannel(server));
     }
@@ -92,18 +88,14 @@ public class DiscordService {
      * @param server The server in which the channel needs to be created
      * @return The created channel. Empty if it couldn't be created
      */
-    public Optional<ServerTextChannel> createServerCveChannel(Server server) {
-        if(!server.canYouCreateChannels()) {
-            LOGGER.warn("Could not create cve-news channel in server : {}", server.getName());
+    public Optional<TextChannel> createServerCveChannel(Guild server) {
+        try {
+            TextChannel channel = server.createTextChannel(CHANNEL_NAME).complete();
+            return Optional.of(channel);
+        } catch(RuntimeException exception) {
+            log.info("Could not create cve-news channel in server : {}", server.getName());
             return Optional.empty();
         }
-
-        ServerTextChannel channel = server.createTextChannelBuilder()
-                .setName(CHANNEL_NAME)
-                .create()
-                .join();
-
-        return Optional.of(channel);
     }
 
 }

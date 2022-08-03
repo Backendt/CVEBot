@@ -19,10 +19,14 @@ public enum Severity {
         return this.color;
     }
 
+    public String getImageName() {
+        String name = this.toString().toLowerCase();
+        return "%s.jpeg".formatted(name);
+    }
+
     public InputStream getImageFile() {
+        String name = getImageName();
         return this.getClass().getClassLoader()
-                .getResourceAsStream("images/%s.jpeg".formatted(
-                        this.toString().toLowerCase()
-                ));
+                .getResourceAsStream("images/%s".formatted(name));
     }
 }
